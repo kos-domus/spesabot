@@ -1,0 +1,46 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#2d6b6b', 'primaryTextColor': '#ffffff', 'primaryBorderColor': '#1a4a4a', 'lineColor': '#e8735a', 'secondaryColor': '#fdf0ed', 'tertiaryColor': '#e0eded', 'fontFamily': 'Inter, sans-serif', 'fontSize': '14px'}}}%%
+
+graph TD
+    USERS["📱 Telegram Users"]
+
+    subgraph FRONTEND["Frontend"]
+        BOT["🤖 grammY Bot"]
+        WEBAPP["📲 Spesify Mini App<br/>Cerca · Offerte · Categorie<br/>Negozi · Preferenze"]
+    end
+
+    subgraph BACKEND["Backend — AceMagic Mini PC"]
+        CF["☁️ Cloudflare Tunnel<br/>app.spesify.xyz"]
+        API["⚡ Fastify API :3080<br/>search · deals · compare<br/>price-spread · stores"]
+        DB["🐘 PostgreSQL 16<br/>14K SKUs · 4K products<br/>3.8K active offers<br/>130 stores"]
+    end
+
+    subgraph ETL["ETL Pipeline — Tue + Fri 03:00"]
+        RUNNER["🏃 Pipeline Runner"]
+        API_CHAINS["🔌 API Chains<br/>Migross · Eurospin"]
+        WEB_CHAINS["🌍 Web Scraping<br/>Lidl · Aldi · Conad<br/>Famila · Rossetto"]
+        FLYER_CHAINS["📄 Flyer / PDF<br/>Despar · Conad Flyer"]
+        INGEST["📥 Ingest + Normalize"]
+    end
+
+    subgraph MATCH["Product Matching — Tue + Thu + Sat 05:00"]
+        CANONICAL["🔗 Rule-based<br/>brand + name + qty"]
+        LLM["🧠 LLM-assisted<br/>Z.AI → GPT-5.4 → Gemini"]
+    end
+
+    USERS <--> CF
+    CF --> API
+    USERS <--> BOT
+    BOT --> API
+    WEBAPP --> API
+    API --> DB
+
+    RUNNER --> API_CHAINS
+    RUNNER --> WEB_CHAINS
+    RUNNER --> FLYER_CHAINS
+    API_CHAINS --> INGEST
+    WEB_CHAINS --> INGEST
+    FLYER_CHAINS --> INGEST
+    INGEST --> DB
+
+    CANONICAL --> DB
+    LLM --> CANONICAL

@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Spesify</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="/webapp/style.css?v=1779081600">
+</head>
+<body>
+  <!-- Top bar: hamburger + wordmark. The brand here is the only thing the user
+       sees while the sidebar is closed; the sidebar itself carries the same
+       wordmark so there's no blank transition when it slides open. -->
+  <header id="topbar">
+    <button id="menu-btn" aria-label="Menu">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="3" y1="6"  x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+    <div id="topbar-title">spesify</div>
+  </header>
+
+  <!-- Sidebar + overlay. #sidebar.open + #sidebar-overlay.visible toggled together. -->
+  <div id="sidebar-overlay"></div>
+  <nav id="sidebar" aria-label="Menu principale">
+    <div class="sidebar-header">
+      <div class="sidebar-brand">spesify</div>
+    </div>
+    <div class="sidebar-items">
+      <!-- Drawer ridotto da 12 a 5 voci dopo lo Slice IA cleanup (Reco #1
+           Frontend Specialist 2026-04-27). Le 5 ex-discovery (Cerca, Offerte,
+           Categorie, In scadenza, Vicino a me) sono assorbite da "Esplora";
+           Negozi+Carte+Info Catene sono tab di "Negozi & carte"; Preferenze
+           è un tab di "Profilo". I redirect sono gestiti in switchScreen(). -->
+      <button class="sidebar-item active" data-screen="home">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span>Home</span>
+      </button>
+
+      <button class="sidebar-item" data-screen="explore">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <span>Esplora</span>
+      </button>
+
+      <button class="sidebar-item" data-screen="shopping-list" id="shopping-list-nav">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 11V7a3 3 0 0 1 6 0v4"/><path d="M3 9h18l-1.5 11a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2L3 9z"/></svg>
+        <span>La mia spesa</span>
+      </button>
+
+      <button class="sidebar-item" data-screen="stores">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        <span>Negozi &amp; carte</span>
+      </button>
+
+      <button class="sidebar-item" data-screen="profile">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span>Profilo</span>
+      </button>
+
+      <button class="sidebar-item" data-screen="analytics" id="analytics-nav" style="display:none">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        <span>Analytics</span>
+      </button>
+    </div>
+  </nav>
+
+  <div id="app">
+    <!-- Home: branded landing with quick-action tiles + live stats. -->
+    <section id="screen-home" class="screen active">
+      <div class="home-container">
+        <div class="home-brand">spesify</div>
+        <div class="home-tagline">Confronta prezzi. Risparmia sulla spesa.</div>
+        <div class="home-chains" id="home-chains">Caricamento catene…</div>
+        <div class="home-actions">
+          <button class="home-action" data-screen="explore">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <span>Esplora</span>
+          </button>
+          <button class="home-action" data-screen="shopping-list">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 11V7a3 3 0 0 1 6 0v4"/><path d="M3 9h18l-1.5 11a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2L3 9z"/></svg>
+            <span>La mia spesa</span>
+          </button>
+          <button class="home-action" data-screen="explore" data-explore-preset="nearby">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+            <span>Vicino a me</span>
+          </button>
+          <button class="home-action" data-screen="explore" data-explore-preset="expiring">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span>In scadenza</span>
+          </button>
+          <button class="home-action home-action-wide" data-screen="explore" data-explore-preset="category">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            <span>Sfoglia categorie</span>
+          </button>
+        </div>
+        <div class="home-stats" id="home-stats"><span>📊 Caricamento…</span></div>
+      </div>
+    </section>
+
+    <section id="screen-search" class="screen">
+      <div class="search-bar">
+        <input type="search" id="search-input" placeholder="Cerca prodotto (es. latte, yogurt, pasta...)" autocomplete="off">
+        <div id="search-spinner" class="search-spinner"></div>
+      </div>
+      <div id="search-results" class="product-grid"></div>
+    </section>
+
+    <!-- Universal explore: text search + combinable filters as chips. Replaces
+         the entry points that today require separate screens (Cerca, Offerte,
+         In scadenza, Vicino a me, Categorie). Backend: /api/explore returns
+         the same shape as /api/deals/top so productCard() renders unchanged. -->
+    <section id="screen-explore" class="screen">
+      <div class="search-bar">
+        <input type="search" id="explore-input" placeholder="Cerca prodotto o esplora le offerte..." autocomplete="off">
+        <div id="explore-spinner" class="search-spinner"></div>
+      </div>
+
+      <div id="explore-active-filters" class="explore-active-filters"></div>
+
+      <div class="explore-presets" role="tablist" aria-label="Modalità di esplorazione">
+        <button class="ex-preset active" data-preset="top" role="tab" aria-selected="true">⚡ Top sconti</button>
+        <button class="ex-preset" data-preset="expiring" role="tab" aria-selected="false">⏱ In scadenza</button>
+        <button class="ex-preset" data-preset="nearby" role="tab" aria-selected="false">📍 Vicino a me</button>
+        <button class="ex-preset" data-preset="category" role="tab" aria-selected="false">🏷️ Categoria</button>
+        <button class="ex-preset ex-preset-more" data-preset="more" role="tab" aria-selected="false">⚙️ Altri filtri</button>
+      </div>
+
+      <div id="explore-category-picker" class="explore-cat-picker" hidden></div>
+      <div id="explore-more-picker" class="explore-more-picker" hidden></div>
+
+      <div id="explore-results" class="product-grid"></div>
+    </section>
+
+    <section id="screen-deals" class="screen">
+      <div id="deals-results" class="product-grid"></div>
+    </section>
+
+    <section id="screen-categories" class="screen">
+      <div id="category-tiles" class="category-grid"></div>
+      <div id="category-results" class="product-grid" style="display:none"></div>
+    </section>
+
+    <!-- Redirect shell — chain-info content now lives inside the unified
+         "Negozi & carte" screen as a tab. Old data-screen="chain-info" links
+         resolve via switchScreen() to screen-stores + tab=chains. -->
+    <section id="screen-chain-info" class="screen"></section>
+
+    <section id="screen-nearby" class="screen">
+      <p class="hint">Mostra le offerte dei supermercati vicini alla tua posizione.</p>
+      <div class="bulk-actions">
+        <button id="nearby-locate-btn">📍 Usa la mia posizione</button>
+      </div>
+      <div id="nearby-results" class="product-grid"></div>
+    </section>
+
+    <section id="screen-expiring" class="screen">
+      <p class="hint">Offerte che scadono presto: prima quelle che finiscono prima.</p>
+      <div class="expiring-window-chips" id="expiring-window-chips">
+        <button class="window-chip" data-days="0">Oggi</button>
+        <button class="window-chip active" data-days="3">3 giorni</button>
+        <button class="window-chip" data-days="7">1 settimana</button>
+        <button class="window-chip" data-days="14">2 settimane</button>
+      </div>
+      <div id="expiring-results" class="product-grid"></div>
+    </section>
+
+    <!-- Legacy direct-link target — redirects to shopping-list with watches tab.
+         Kept as an empty screen so existing data-screen="watches" navigations
+         still resolve, but the JS handler will switch to shopping-list pane. -->
+    <section id="screen-watches" class="screen"></section>
+
+    <!-- Unified "La mia spesa" — products tab (canonical product follow with
+         optional thresholds) + keywords tab (free-text alerts with optional
+         price ceiling). Reco #2 from Frontend Specialist 2026-04-27 report:
+         single screen, two paradigms exposed as tabs to reduce cognitive load. -->
+    <section id="screen-shopping-list" class="screen">
+      <div class="ms-tabs" role="tablist">
+        <button class="ms-tab active" data-ms-tab="products" role="tab" aria-selected="true">🛒 I miei prodotti</button>
+        <button class="ms-tab" data-ms-tab="watches" role="tab" aria-selected="false">🔔 Avvisi per parola</button>
+      </div>
+
+      <div class="ms-pane" data-ms-pane="products">
+        <p class="hint">Lista personale di prodotti specifici. Per ognuno puoi impostare uno sconto minimo o un prezzo massimo, e ricevi una notifica Telegram quando l'offerta scatta.</p>
+        <div class="bulk-actions">
+          <button id="add-list-product-btn">➕ Aggiungi prodotto</button>
+          <button id="sli-view-toggle" class="sli-view-toggle" type="button"
+                  aria-pressed="true" title="Cambia vista">🗂️ Raggruppa</button>
+        </div>
+        <div id="sli-hint-v2" class="sli-hint-banner" style="display:none">
+          <span class="sli-hint-icon">💡</span>
+          <span class="sli-hint-text">Riordina i prodotti con <b>▲▼</b> · Tieni premuto un prodotto per <b>cambiare categoria</b></span>
+          <button class="sli-hint-dismiss" type="button" aria-label="Chiudi suggerimento">✕</button>
+        </div>
+        <div id="shopping-list-empty" style="display:none"></div>
+        <div id="shopping-list-items"></div>
+      </div>
+
+      <div class="ms-pane" data-ms-pane="watches" style="display:none">
+        <p class="hint">Per quando non sai quale prodotto specifico: aggiungi una parola (es. <i>"olio extravergine"</i>) e ricevi una notifica per <b>qualunque</b> offerta che la contiene.</p>
+        <div class="bulk-actions">
+          <button id="add-watch-btn">➕ Crea avviso</button>
+        </div>
+        <div id="watches-list"></div>
+      </div>
+    </section>
+
+    <!-- Unified "Negozi & carte" — absorbs the Negozi, Carte Fedelta, and
+         Info Catene screens as tabs. Reco #1 IA depth: 12 → 5 drawer voices.
+         Each tab keeps its own existing data container so no other JS changes
+         are needed (loadStores / loadLoyaltyCards / loadChainInfo write into
+         the same node IDs they always did). -->
+    <section id="screen-stores" class="screen">
+      <div class="ms-tabs" role="tablist">
+        <button class="ms-tab active" data-nc-tab="stores" role="tab" aria-selected="true">Negozi</button>
+        <button class="ms-tab" data-nc-tab="cards" role="tab" aria-selected="false">Carte Fedeltà</button>
+        <button class="ms-tab" data-nc-tab="chains" role="tab" aria-selected="false">Info Catene</button>
+      </div>
+
+      <div class="ms-pane" data-nc-pane="stores">
+        <div id="stores-list" class="stores-grid"></div>
+      </div>
+
+      <div class="ms-pane" data-nc-pane="cards" style="display:none">
+        <p class="hint">Iscriviti alle carte fedeltà per sbloccare sconti esclusivi.</p>
+        <div id="loyalty-cards" class="cards-grid"></div>
+      </div>
+
+      <div class="ms-pane" data-nc-pane="chains" style="display:none">
+        <div id="chain-info-list" class="chain-info-grid"></div>
+      </div>
+    </section>
+
+    <!-- Legacy direct-link redirect targets — empty screens that resolve old
+         data-screen names by switching to the unified container in the JS
+         router (see switchScreen). Preserved as no-op shells so external
+         deep-links don't 404. -->
+    <section id="screen-cards" class="screen"></section>
+
+    <!-- Profilo with embedded Preferenze tab — Account info up top,
+         configurazione sotto. Single drawer entry replaces 2. -->
+    <section id="screen-profile" class="screen">
+      <div class="ms-tabs" role="tablist">
+        <button class="ms-tab active" data-pr-tab="account" role="tab" aria-selected="true">Account</button>
+        <button class="ms-tab" data-pr-tab="settings" role="tab" aria-selected="false">Preferenze</button>
+      </div>
+
+      <div class="ms-pane" data-pr-pane="account">
+        <div id="profile-content"></div>
+      </div>
+
+      <div class="ms-pane" data-pr-pane="settings" style="display:none">
+        <p class="hint">Seleziona i supermercati che ti interessano:</p>
+        <div class="bulk-actions">
+          <button onclick="bulkToggle('chain-toggles', true)">Seleziona tutto</button>
+          <button onclick="bulkToggle('chain-toggles', false)">Deseleziona tutto</button>
+        </div>
+        <div id="chain-toggles" class="settings-list"></div>
+        <h3>I miei negozi</h3>
+        <p class="hint">Seleziona i negozi vicini a te:</p>
+        <div class="bulk-actions">
+          <button onclick="bulkToggle('store-toggles', true)">Seleziona tutto</button>
+          <button onclick="bulkToggle('store-toggles', false)">Deseleziona tutto</button>
+          <button onclick="selectNearbyStores()">Vicino a me</button>
+          <button onclick="resetAllPrefs()">Reset</button>
+        </div>
+        <div id="store-toggles" class="settings-list"></div>
+      </div>
+    </section>
+
+    <section id="screen-analytics" class="screen">
+      <div id="analytics-content"></div>
+    </section>
+
+    <!-- Redirect shell — settings now live as a tab inside #screen-profile.
+         Old data-screen="settings" links resolve via switchScreen(). -->
+    <section id="screen-settings" class="screen"></section>
+  </div>
+
+  <script src="/webapp/app.js?v=1779081600"></script>
+</body>
+</html>

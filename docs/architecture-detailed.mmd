@@ -1,0 +1,120 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#2d6b6b', 'primaryTextColor': '#ffffff', 'primaryBorderColor': '#1a4a4a', 'lineColor': '#e8735a', 'secondaryColor': '#fdf0ed', 'tertiaryColor': '#e0eded', 'fontFamily': 'Inter, sans-serif', 'fontSize': '13px'}}}%%
+
+flowchart TB
+    subgraph L1["1. Channel Layer"]
+        USER["End User"]
+        TG["Telegram Client"]
+        TMA["Telegram Mini App WebView"]
+        OPS["Operator / systemd timers"]
+    end
+
+    subgraph L2["2. Edge And Delivery Layer"]
+        BOTAPI["Telegram Bot API"]
+        CF["Cloudflare Tunnel<br/>app.spesify.xyz"]
+        FASTIFY["Fastify Server<br/>src/api/server.ts<br/>static hosting + REST API"]
+    end
+
+    subgraph L3["3. UX And Application Services"]
+        BOT["grammY Bot<br/>src/bot/bot.ts<br/>search, compare, categories,<br/>preferences, profile, loyalty"]
+        WEBAPP["Mini App<br/>src/webapp/index.html + app.js<br/>search, deals, categories,<br/>stores, preferences"]
+        APIPUB["Public API Endpoints<br/>status, search, categoria,<br/>deals, chain, compare,<br/>price-spread, product prices,<br/>stores, loyalty, chains"]
+        APIPREF["Protected API Endpoints<br/>GET/POST /api/preferences"]
+        APIAUTH["Telegram initData Validation<br/>HMAC + auth_date + replay cache"]
+        LOYALTY["Conad Signup Automation<br/>src/loyalty/conad-signup.ts"]
+        ALERTS["Alerting<br/>src/alerts.ts"]
+    end
+
+    subgraph L4["4. Shared Core Modules"]
+        DBMOD["db.ts<br/>PostgreSQL connection pool"]
+        REGISTRY["store-registry.ts<br/>configs/stores.yaml -> scrape targets"]
+        NORMALIZE["normalize.ts<br/>price, quantity, mechanic,<br/>unit price normalization"]
+        CRYPTO["crypto.ts<br/>profile field encryption"]
+    end
+
+    subgraph L5["5. ETL And Extraction Layer"]
+        TIMER["scripts/run-pipeline.sh<br/>scripts/run-matching.sh<br/>user systemd timers"]
+        RUNNER["runner.ts<br/>weekly orchestration"]
+        DEEP["External deep-research pipeline<br/>createJob / executeJob / closeBrowser"]
+        DISCOVERY["Discovery Modules<br/>aldi, lidl, eurospin,<br/>conad, despar"]
+        FETCHERS["Specialized Fetchers<br/>migross, famila, rossetto,<br/>pdf download, ipaper fetch"]
+        PARSERS["Chain Parsers<br/>aldi, famila, lidl, eurospin,<br/>conad, conad-flyer,<br/>despar, rossetto"]
+        INGEST["ingest.ts<br/>campaign upsert -> sku upsert -><br/>offer insert -> price_history"]
+    end
+
+    subgraph L6["6. Product Matching Layer"]
+        CANON["canonical-match.ts<br/>rule-based canonical linking"]
+        LLM["llm-match.ts<br/>Z.AI -> GPT-5.4 -> Gemini"]
+    end
+
+    subgraph L7["7. Persistence Layer"]
+        PG["PostgreSQL 16<br/>PostGIS + pg_trgm"]
+        STOREDATA["chains + stores"]
+        CATALOG["products + product_skus"]
+        PROMO["flyer_campaigns + offers + price_history"]
+        USERDATA["user_profiles + user_loyalty_cards"]
+        SEARCHDATA["normalized_name + search_vector + tags<br/>views: price_spread, cross_chain_prices,<br/>best_prices, category_price_leaders"]
+    end
+
+    subgraph L8["8. External Systems"]
+        RETAIL["Retailer Websites / APIs / PDFs"]
+        LLMEXT["External LLM Providers"]
+        MAPS["Google Maps"]
+    end
+
+    USER <--> TG
+    TG <--> BOTAPI
+    TG --> TMA
+    TMA --> CF
+    CF --> FASTIFY
+
+    BOTAPI <--> BOT
+    BOT --> WEBAPP
+    WEBAPP --> FASTIFY
+    FASTIFY --> WEBAPP
+
+    FASTIFY --> APIPUB
+    FASTIFY --> APIPREF
+    FASTIFY --> APIAUTH
+    APIAUTH --> APIPREF
+
+    BOT --> DBMOD
+    BOT --> CRYPTO
+    BOT --> LOYALTY
+    BOT --> MAPS
+
+    APIPUB --> DBMOD
+    APIPREF --> DBMOD
+
+    OPS --> TIMER
+    TIMER --> RUNNER
+    TIMER --> CANON
+    CANON --> LLM
+
+    RUNNER --> REGISTRY
+    RUNNER --> DEEP
+    RUNNER --> DISCOVERY
+    RUNNER --> FETCHERS
+    RUNNER --> INGEST
+
+    DISCOVERY --> RETAIL
+    FETCHERS --> RETAIL
+    DEEP --> RETAIL
+    LOYALTY --> RETAIL
+
+    PARSERS --> INGEST
+    INGEST --> NORMALIZE
+    INGEST --> REGISTRY
+    INGEST --> DBMOD
+
+    CANON --> DBMOD
+    LLM --> DBMOD
+    LLM --> LLMEXT
+    RUNNER --> ALERTS
+    ALERTS --> BOTAPI
+
+    DBMOD --> PG
+    PG --> STOREDATA
+    PG --> CATALOG
+    PG --> PROMO
+    PG --> USERDATA
+    PG --> SEARCHDATA
