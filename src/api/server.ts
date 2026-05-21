@@ -91,9 +91,17 @@ function tryValidateTelegramAuth(req: FastifyRequest): boolean {
 // Async preHandler — Fastify v5 hangs on sync hooks that don't take a `done`
 // callback. Keeping this Promise-returning is load-bearing.
 async function validateTelegramAuth(req: FastifyRequest, reply: FastifyReply): Promise<void> {
+  // Single deny() emits a structured warn log on every auth failure so a
+  // brute-force or signature-tampering attempt leaves a trail. CSO finding P2
+  // (2026-05-20): "no auth-failure logging".
+  const deny = (reason: string, status: 401 | 500 = 401): void => {
+    req.log.warn({ event: 'auth_fail', reason, ip: req.ip, ua: req.headers['user-agent'] });
+    reply.status(status).send({ error: status === 500 ? 'Server misconfiguration' : reason });
+  };
+
   const authHeader = req.headers['authorization'];
   if (!authHeader || !authHeader.startsWith('tma ')) {
-    reply.status(401).send({ error: 'Missing Telegram auth' });
+    deny('Missing Telegram auth');
     return;
   }
 
@@ -101,7 +109,7 @@ async function validateTelegramAuth(req: FastifyRequest, reply: FastifyReply): P
   const botToken = process.env.SPESABOT_BOT_TOKEN;
   if (!botToken) {
     // Misconfiguration — fail closed
-    reply.status(500).send({ error: 'Server misconfiguration' });
+    deny('bot_token_missing', 500);
     return;
   }
 
@@ -109,14 +117,14 @@ async function validateTelegramAuth(req: FastifyRequest, reply: FastifyReply): P
   const params = new URLSearchParams(initData);
   const receivedHash = params.get('hash');
   if (!receivedHash) {
-    reply.status(401).send({ error: 'Invalid initData: missing hash' });
+    deny('Invalid initData: missing hash');
     return;
   }
   // Guard: hash must be 64-char hex. Without this, a malformed (non-hex)
   // string of length 64 reaches Buffer.from('hex') which silently produces
   // a shorter buffer, making timingSafeEqual throw a 500 instead of a clean 401.
   if (!/^[a-f0-9]{64}$/i.test(receivedHash)) {
-    reply.status(401).send({ error: 'Invalid initData: malformed hash' });
+    deny('Invalid initData: malformed hash');
     return;
   }
 
@@ -126,17 +134,17 @@ async function validateTelegramAuth(req: FastifyRequest, reply: FastifyReply): P
   // --- Freshness check: reject if auth_date is too old ---
   const authDateStr = params.get('auth_date');
   if (!authDateStr) {
-    reply.status(401).send({ error: 'Invalid initData: missing auth_date' });
+    deny('Invalid initData: missing auth_date');
     return;
   }
   const authDate = parseInt(authDateStr, 10);
   if (isNaN(authDate)) {
-    reply.status(401).send({ error: 'Invalid initData: malformed auth_date' });
+    deny('Invalid initData: malformed auth_date');
     return;
   }
   const nowSeconds = Math.floor(Date.now() / 1000);
   if (nowSeconds - authDate > AUTH_DATE_MAX_AGE_SECONDS) {
-    reply.status(401).send({ error: 'initData expired: auth_date too old' });
+    deny('initData expired: auth_date too old');
     return;
   }
 
@@ -157,14 +165,14 @@ async function validateTelegramAuth(req: FastifyRequest, reply: FastifyReply): P
         Buffer.from(expectedHash, 'hex'),
         Buffer.from(receivedHash, 'hex'),
       )) {
-    reply.status(401).send({ error: 'Invalid Telegram signature' });
+    deny('Invalid Telegram signature');
     return;
   }
 
   // Extract user.id from the validated "user" param
   const userJson = params.get('user');
   if (!userJson) {
-    reply.status(401).send({ error: 'No user in initData' });
+    deny('No user in initData');
     return;
   }
   try {
@@ -172,7 +180,7 @@ async function validateTelegramAuth(req: FastifyRequest, reply: FastifyReply): P
     if (!user.id) throw new Error('missing id');
     req.telegramUserId = String(user.id);
   } catch {
-    reply.status(401).send({ error: 'Malformed user in initData' });
+    deny('Malformed user in initData');
   }
 }
 
@@ -225,6 +233,15 @@ app.register(helmet, {
     },
   },
   crossOriginEmbedderPolicy: false, // needed for Telegram WebView
+  // HSTS explicit — Cloudflare Tunnel already enforces HTTPS upstream, but
+  // declaring it here makes it visible to scanners + survives any upstream
+  // mis-configuration. 1y / includeSubDomains; no preload (we don't control
+  // browser HSTS preload registry).
+  strictTransportSecurity: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: false,
+  },
 });
 
 // Rate limiting — protect against abuse from public endpoints
@@ -1717,11 +1734,32 @@ app.get<{ Querystring: { q: string; limit?: string } }>(
 
 // --- Analytics event tracking ---
 
-/** Hash an IP address with a static salt for anonymous uniqueness tracking. */
+/** Hash an IP address with a static salt for anonymous uniqueness tracking.
+ *  The salt MUST be set in env and treated as secret: a known salt over a
+ *  4-byte address space is rainbow-tabable in hours, defeating the purpose. */
+const IP_SALT = (() => {
+  const v = process.env.SPESABOT_IP_SALT;
+  if (!v || v.length < 16) {
+    throw new Error(
+      'SPESABOT_IP_SALT must be set (≥16 chars) for analytics IP hashing. Generate with: openssl rand -hex 32',
+    );
+  }
+  return v;
+})();
 function hashIp(ip: string): string {
-  const salt = process.env.SPESABOT_IP_SALT ?? 'spesify-default-salt';
-  return createHash('sha256').update(ip + salt).digest('hex').slice(0, 16);
+  return createHash('sha256').update(ip + IP_SALT).digest('hex').slice(0, 16);
 }
+
+// Whitelist of event_type values the Mini App is allowed to emit. Anything
+// else is rejected to keep `api_events` from being a free-form log target
+// (CSO finding P1, 2026-05-20).
+const ALLOWED_EVENT_TYPES = new Set([
+  'app_open', 'screen_view', 'search', 'product_click', 'chain_filter',
+  'category_filter', 'preset_change', 'store_select', 'watch_create',
+  'watch_delete', 'list_add', 'list_remove', 'profile_register',
+  'profile_update', 'card_action', 'error',
+]);
+const EVENTS_METADATA_MAX_BYTES = 2048;
 
 app.post<{ Body: {
   event_type: string;
@@ -1729,10 +1767,14 @@ app.post<{ Body: {
   metadata?: Record<string, unknown>;
 } }>(
   '/api/events',
-  async (req) => {
+  async (req, reply) => {
     const { event_type, session_id, metadata } = req.body;
-    if (!event_type || typeof event_type !== 'string' || event_type.length > 50) {
-      return { ok: false };
+    if (!event_type || typeof event_type !== 'string' || !ALLOWED_EVENT_TYPES.has(event_type)) {
+      return reply.status(400).send({ ok: false, error: 'invalid event_type' });
+    }
+    const metaJson = JSON.stringify(metadata ?? {});
+    if (Buffer.byteLength(metaJson, 'utf8') > EVENTS_METADATA_MAX_BYTES) {
+      return reply.status(413).send({ ok: false, error: 'metadata too large' });
     }
     // Anonymous sessions are OK (session_id only). But never trust a
     // client-provided telegram_user_id — attackers could forge it to attribute
@@ -1743,7 +1785,7 @@ app.post<{ Body: {
     await query(
       `INSERT INTO api_events (event_type, session_id, telegram_user_id, metadata, ip_hash)
        VALUES ($1, $2, $3, $4, $5)`,
-      [event_type, session_id ?? null, authedUserId, JSON.stringify(metadata ?? {}), ipHash],
+      [event_type, session_id ?? null, authedUserId, metaJson, ipHash],
     );
     return { ok: true };
   },
@@ -1760,11 +1802,11 @@ app.post<{ Body: {
 //
 // Owner-gated via SPESABOT_OWNER_TG_ID, same pattern as /api/analytics/summary.
 // Read-only; safe to poll from a status page or alerting cron.
-app.get('/api/admin/health', async (req) => {
+app.get('/api/admin/health', async (req, reply) => {
   const ownerId = process.env.SPESABOT_OWNER_TG_ID;
   tryValidateTelegramAuth(req);
   if (!ownerId || req.telegramUserId !== ownerId) {
-    return { error: 'Forbidden' };
+    return reply.status(403).send({ error: 'Forbidden' });
   }
 
   // Per-chain freshness + coverage. Joins offers→skus→chains so we get
@@ -1877,11 +1919,11 @@ app.get('/api/admin/health', async (req) => {
 // types so an unfiltered call gives a usable feed.
 app.get<{ Querystring: { run_type?: string; chain?: string; limit?: string; status?: string } }>(
   '/api/admin/runs',
-  async (req) => {
+  async (req, reply) => {
     const ownerId = process.env.SPESABOT_OWNER_TG_ID;
     tryValidateTelegramAuth(req);
     if (!ownerId || req.telegramUserId !== ownerId) {
-      return { error: 'Forbidden' };
+      return reply.status(403).send({ error: 'Forbidden' });
     }
 
     const limit = Math.min(Math.max(parseInt(req.query.limit ?? '50', 10) || 50, 1), 200);
@@ -1924,14 +1966,14 @@ app.get<{ Querystring: { run_type?: string; chain?: string; limit?: string; stat
 // --- Analytics dashboard (owner only) ---
 app.get<{ Querystring: { days?: string } }>(
   '/api/analytics/summary',
-  async (req) => {
+  async (req, reply) => {
     const days = Math.min(parseInt(req.query.days ?? '7', 10), 90);
     const ownerId = process.env.SPESABOT_OWNER_TG_ID;
 
     // Gate: only the bot owner can see this (by telegram ID)
     tryValidateTelegramAuth(req);
     if (!ownerId || req.telegramUserId !== ownerId) {
-      return { error: 'Forbidden' };
+      return reply.status(403).send({ error: 'Forbidden' });
     }
 
     const byDay = await query(`

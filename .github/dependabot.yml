@@ -1,0 +1,26 @@
+# Dependabot config — weekly npm dependency scan + auto-PR for vulnerable deps.
+# CSO finding P2 (OWASP audit 2026-05-20): add SCA in CI for public repo maturity.
+
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: "Europe/Rome"
+    open-pull-requests-limit: 5
+    # Group all minor + patch into a single weekly PR to reduce noise.
+    # Major bumps stay as individual PRs so they're reviewed properly.
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    labels:
+      - dependencies
+      - security
+    commit-message:
+      prefix: "deps"
+      include: scope
