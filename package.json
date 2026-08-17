@@ -14,19 +14,19 @@
     "fill": "node dist/manual-image-fill.js"
   },
   "dependencies": {
-    "@fastify/helmet": "^13.0.2",
+    "@fastify/helmet": "^13.1.0",
     "@fastify/rate-limit": "^10.3.0",
     "@fastify/static": "^9.1.0",
-    "fastify": "^5.3.0",
-    "grammy": "^1.35.0",
-    "pg": "^8.16.0",
-    "playwright": "^1.59.1",
-    "sharp": "^0.34.5",
-    "yaml": "^2.8.3"
+    "fastify": "^5.11.2",
+    "grammy": "^1.45.1",
+    "pg": "^8.22.0",
+    "playwright": "^1.62.1",
+    "sharp": "^0.35.3",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "@types/pg": "^8.11.0",
+    "@types/pg": "^8.20.4",
     "typescript": "^5.8.0"
   }
 }
